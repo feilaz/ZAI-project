@@ -1,0 +1,11 @@
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
