@@ -43,3 +43,12 @@ def get_sensor(sensorId: UUID):
     if sensor is None:
         raise HTTPException(404, "Sensor not found")
     return sensor
+
+
+@router.delete("/{sensorId}", status_code=204)
+def delete_sensor(sensorId: UUID):
+    with get_connection() as connection:
+        deleted = connection.execute("DELETE FROM sensors WHERE id = %s RETURNING id", (sensorId,)).fetchone()
+    if deleted is None:
+        raise HTTPException(404, "Sensor not found")
+    return Response(status_code=204)

@@ -3,12 +3,12 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from argon2.exceptions import InvalidHashError, VerificationError
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.database import get_connection
 from app.passwords import password_hasher
-from app.schemas import LoginInput
+from app.schemas import LoginInput, PasswordChange
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -52,3 +52,34 @@ def login(body: LoginInput):
             (hash_token(token), user["id"], datetime.now(timezone.utc) + timedelta(seconds=SESSION_SECONDS)),
         )
     return {"accessToken": token, "tokenType": "Bearer", "expiresIn": SESSION_SECONDS}
+
+
+@router.post("/logout", status_code=204)
+def logout(session=Depends(require_admin)):
+    with get_connection() as connection:
+        deleted = connection.execute(
+            "DELETE FROM sessions WHERE token_hash = %s RETURNING token_hash",
+            (session["token_hash"],),
+        ).fetchone()
+    if deleted is None:
+        raise HTTPException(401, "Session is no longer active")
+    return Response(status_code=204)
+
+
+@router.put("/password", status_code=204)
+def change_password(body: PasswordChange, session=Depends(require_admin)):
+    with get_connection() as connection:
+        user = connection.execute(
+            "SELECT password_hash FROM users WHERE id = %s FOR UPDATE", (session["user_id"],)
+        ).fetchone()
+        if user is None:
+            raise HTTPException(401, "User no longer exists")
+        try:
+            password_hasher.verify(user["password_hash"], body.currentPassword)
+        except (VerificationError, InvalidHashError):
+            raise HTTPException(403, "Current password is incorrect") from None
+        connection.execute(
+            "UPDATE users SET password_hash = %s WHERE id = %s",
+            (password_hasher.hash(body.newPassword), session["user_id"]),
+        )
+    return Response(status_code=204)

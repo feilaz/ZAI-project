@@ -9,6 +9,11 @@ class LoginInput(BaseModel):
     password: str
 
 
+class PasswordChange(BaseModel):
+    currentPassword: str
+    newPassword: str = Field(min_length=8)
+
+
 class SeriesInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     minValue: float = Field(strict=True, allow_inf_nan=False)

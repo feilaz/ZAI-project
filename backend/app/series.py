@@ -25,6 +25,41 @@ def create_series(body: SeriesInput, response: Response):
     return series
 
 
+@router.put("/{seriesId}", dependencies=[Depends(require_admin)])
+def update_series(seriesId: UUID, body: SeriesInput):
+    if body.minValue >= body.maxValue:
+        raise HTTPException(422, "minValue must be less than maxValue")
+    with get_connection() as connection:
+        # Prevent new readings while checking and changing the bounds.
+        series = connection.execute(
+            "SELECT id FROM series WHERE id = %s FOR UPDATE", (seriesId,)
+        ).fetchone()
+        if series is None:
+            raise HTTPException(404, "Series not found")
+        outside_range = connection.execute(
+            "SELECT id FROM measurements WHERE series_id = %s "
+            "AND (value < %s OR value > %s) LIMIT 1",
+            (seriesId, body.minValue, body.maxValue),
+        ).fetchone()
+        if outside_range is not None:
+            raise HTTPException(409, "The new range excludes existing measurements")
+        series = connection.execute(
+            "UPDATE series SET name = %s, min_value = %s, max_value = %s, "
+            f"color = %s, icon = %s, unit = %s WHERE id = %s RETURNING {COLUMNS}",
+            (body.name, body.minValue, body.maxValue, body.color, body.icon, body.unit, seriesId),
+        ).fetchone()
+    return series
+
+
+@router.delete("/{seriesId}", status_code=204, dependencies=[Depends(require_admin)])
+def delete_series(seriesId: UUID):
+    with get_connection() as connection:
+        deleted = connection.execute("DELETE FROM series WHERE id = %s RETURNING id", (seriesId,)).fetchone()
+    if deleted is None:
+        raise HTTPException(404, "Series not found")
+    return Response(status_code=204)
+
+
 @router.get("")
 def list_series():
     with get_connection() as connection:

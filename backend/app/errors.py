@@ -51,7 +51,7 @@ async def check_media_types(request: Request, call_next):
         quality = accepted.get("application/json", accepted.get("application/*", accepted.get("*/*", 0)))
         if not 0 < quality <= 1:
             return problem(406, "Only application/json responses are available")
-        if request.method in {"POST", "PUT", "PATCH"}:
+        if request.method in {"POST", "PUT", "PATCH"} and await request.body():
             content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
             if content_type != "application/json":
                 return problem(415, "Request body must use application/json")

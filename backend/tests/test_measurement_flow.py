@@ -103,3 +103,78 @@ class MeasurementFlowTest(unittest.TestCase):
             self.assertEqual(reader.get("/api/measurements", params={"series": str(uuid4())}).json(), [])
             self.assertEqual(reader.get("/api/measurements").json(), [expected, later])
             self.assertEqual(reader.get("/api/measurements", params={"sort": "-timestamp", "limit": 1}).json(), [later])
+
+    def test_password_change_and_logout(self):
+        login_body = {"username": "admin", "password": self.password}
+        token = self.request("POST", "/api/auth/login", 200, json=login_body).json()["accessToken"]
+        admin = {"Authorization": f"Bearer {token}"}
+        new_password = "changed-" + uuid4().hex
+        change = {"currentPassword": self.password, "newPassword": new_password}
+
+        self.request("PUT", "/api/auth/password", 401, json=change)
+        self.request("PUT", "/api/auth/password", 403, headers=admin, json={**change, "currentPassword": "wrong"})
+        self.request("PUT", "/api/auth/password", 422, headers=admin, json={**change, "newPassword": "short"})
+        # Rejected changes must leave the original credentials usable.
+        self.request("POST", "/api/auth/login", 200, json=login_body)
+        changed = self.request("PUT", "/api/auth/password", 204, headers=admin, json=change)
+        self.assertEqual(changed.content, b"")
+        self.request("POST", "/api/auth/login", 401, json=login_body)
+        new_token = self.request("POST", "/api/auth/login", 200, json={
+            "username": "admin", "password": new_password,
+        }).json()["accessToken"]
+
+        self.request("POST", "/api/auth/logout", 401)
+        logged_out = self.request("POST", "/api/auth/logout", 204, headers=admin)
+        self.assertEqual(logged_out.content, b"")
+        self.request("GET", "/api/sensors", 401, headers=admin)
+        self.request("POST", "/api/auth/logout", 401, headers=admin)
+        # Logout affects this session, not another independently issued token.
+        self.request("GET", "/api/sensors", 200, headers={"Authorization": f"Bearer {new_token}"})
+
+    def test_series_updates_and_sensor_and_series_deletion(self):
+        token = self.request("POST", "/api/auth/login", 200, json={
+            "username": "admin", "password": self.password,
+        }).json()["accessToken"]
+        admin = {"Authorization": f"Bearer {token}"}
+        original = {"name": "PM2.5", "minValue": 0, "maxValue": 100, "color": "#123456", "icon": "circle", "unit": "µg/m³"}
+        series = self.request("POST", "/api/series", 201, headers=admin, json=original).json()
+        series_url = f"/api/series/{series['id']}"
+        sensor_body = {"name": "Importer", "seriesId": series["id"]}
+        sensor = self.request("POST", "/api/sensors", 201, headers=admin, json=sensor_body).json()
+        sensor_url = f"/api/sensors/{sensor['id']}"
+        key = {"X-API-Key": sensor["apiKey"]}
+        measurement = self.request("POST", "/api/measurements", 201, headers=key, json={"value": 12.5}).json()
+        measurement_url = f"/api/measurements/{measurement['id']}"
+
+        self.request("PUT", series_url, 401, json=original)
+        self.request("PUT", series_url, 422, headers=admin, json={**original, "maxValue": 0})
+        self.request("PUT", series_url, 409, headers=admin, json={**original, "minValue": 20})
+        self.assertEqual(self.request("GET", series_url, 200).json(), series)
+        replacement = {"name": "Updated PM2.5", "minValue": 12.5, "maxValue": 50, "color": "#abcdef"}
+        expected = {**replacement, "id": series["id"], "icon": None, "unit": None}
+        self.assertEqual(self.request("PUT", series_url, 200, headers=admin, json=replacement).json(), expected)
+        self.assertEqual(self.request("GET", series_url, 200).json(), expected)
+        self.request("POST", "/api/measurements", 422, headers=key, json={"value": 75})
+        self.request("PUT", f"/api/series/{uuid4()}", 404, headers=admin, json=replacement)
+
+        self.request("DELETE", sensor_url, 401)
+        self.assertEqual(self.request("DELETE", sensor_url, 204, headers=admin).content, b"")
+        self.request("GET", sensor_url, 404, headers=admin)
+        self.request("DELETE", sensor_url, 404, headers=admin)
+        self.request("POST", "/api/measurements", 401, headers=key, json={"value": 25})
+        retained = {field: value for field, value in measurement.items() if field != "sensorId"}
+        self.assertEqual(self.request("GET", measurement_url, 200).json(), retained)
+
+        # Deleting the series must remove both old readings and a currently registered sensor.
+        sensor = self.request("POST", "/api/sensors", 201, headers=admin, json=sensor_body).json()
+        key = {"X-API-Key": sensor["apiKey"]}
+        newer = self.request("POST", "/api/measurements", 201, headers=key, json={"value": 25}).json()
+        self.request("DELETE", series_url, 401)
+        self.assertEqual(self.request("DELETE", series_url, 204, headers=admin).content, b"")
+        self.request("GET", series_url, 404)
+        self.request("DELETE", series_url, 404, headers=admin)
+        self.request("GET", f"/api/sensors/{sensor['id']}", 404, headers=admin)
+        self.request("GET", measurement_url, 404)
+        self.request("GET", f"/api/measurements/{newer['id']}", 404)
+        self.request("POST", "/api/measurements", 401, headers=key, json={"value": 25})
+        self.assertEqual(self.request("GET", "/api/measurements", 200, params={"series": series["id"]}).json(), [])
