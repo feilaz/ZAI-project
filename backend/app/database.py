@@ -3,6 +3,7 @@ from pathlib import Path
 
 import psycopg
 from dotenv import load_dotenv
+from psycopg.rows import dict_row
 
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
@@ -16,4 +17,5 @@ def get_connection() -> psycopg.Connection:
         user=os.environ["POSTGRES_USER"],
         password=os.environ["POSTGRES_PASSWORD"],
         connect_timeout=5,
+        row_factory=dict_row,
     )

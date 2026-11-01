@@ -1,4 +1,4 @@
-.PHONY: db-up db-stop db-status db-logs db-shell db-check db-setup migrate create-admin api dev
+.PHONY: db-up db-stop db-status db-logs db-shell db-check db-setup migrate create-admin api dev test
 
 db-up:
 	docker compose up -d --wait db
@@ -31,3 +31,6 @@ api:
 
 dev: db-setup
 	$(MAKE) api
+
+test: db-up
+	PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v
