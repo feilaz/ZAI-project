@@ -34,3 +34,4 @@ dev: db-setup
 
 test: db-up
 	PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v
+	.venv/bin/python -m unittest discover -s generator -p 'test_*.py' -v

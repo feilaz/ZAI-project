@@ -10,23 +10,29 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
+from uuid import UUID
 
 from dotenv import load_dotenv
+
+import gios
 
 
 def parse_arguments():
     load_dotenv(Path(__file__).resolve().parents[1] / ".env")
-    parser = argparse.ArgumentParser(description="Send simulated measurements through the sensor API.")
-    parser.add_argument("mode", choices=["historical", "live"])
+    parser = argparse.ArgumentParser(description="Send simulated or real GIOŚ measurements through the sensor API.")
+    parser.add_argument("mode", choices=["historical", "live", "gios"])
     parser.add_argument("--api-url", default=os.getenv("GENERATOR_API_URL", "http://127.0.0.1:8000"),
                         help="Server address without /api; defaults to GENERATOR_API_URL or localhost:8000")
     parser.add_argument("--api-key", default=os.getenv("GENERATOR_SENSOR_API_KEY"),
                         help="Sensor key; defaults to GENERATOR_SENSOR_API_KEY")
-    parser.add_argument("--count", type=int, default=15, help="Number of readings (default: 15)")
+    parser.add_argument("--count", type=int, default=15, help="Number of simulated readings or latest GIOŚ readings to consider (default: 15)")
     parser.add_argument("--interval", type=float, default=60,
-                        help="Seconds between historical timestamps or live submissions (default: 60)")
-    parser.add_argument("--min", dest="min_value", type=float, default=0, help="Lowest value (default: 0)")
-    parser.add_argument("--max", dest="max_value", type=float, default=100, help="Highest value (default: 100)")
+                        help="Synthetic modes: seconds between timestamps/submissions (default: 60)")
+    parser.add_argument("--min", dest="min_value", type=float, default=0, help="Lowest synthetic value (default: 0)")
+    parser.add_argument("--max", dest="max_value", type=float, default=100, help="Highest synthetic value (default: 100)")
+    parser.add_argument("--gios-sensor-id", type=int, help="GIOŚ measurement-point ID; required for gios mode")
+    parser.add_argument("--series-id", help="Local series UUID assigned to the sensor key; required for gios mode")
+    parser.add_argument("--poll", type=float, default=0, help="GIOŚ polling interval in seconds; 0 imports once (default), minimum 60 otherwise")
     args = parser.parse_args()
     if not args.api_key:
         parser.error("Set GENERATOR_SENSOR_API_KEY in .env or provide --api-key")
@@ -41,6 +47,15 @@ def parse_arguments():
         parser.error("--min and --max must define a finite numeric range")
     if args.min_value > args.max_value:
         parser.error("--min must not exceed --max")
+    if args.mode == "gios":
+        if args.gios_sensor_id is None or args.gios_sensor_id < 1:
+            parser.error("gios mode requires a positive --gios-sensor-id")
+        try:
+            args.series_id = str(UUID(args.series_id or ""))
+        except ValueError:
+            parser.error("gios mode requires --series-id with the local series UUID")
+        if not math.isfinite(args.poll) or (args.poll != 0 and args.poll < 60):
+            parser.error("--poll must be 0 (one import) or at least 60 seconds")
     return args
 
 
@@ -55,10 +70,17 @@ def send_measurement(api_url, api_key, value, timestamp):
     with urlopen(request, timeout=10) as response:
         if response.status != 201:
             raise RuntimeError(f"Expected HTTP 201, received HTTP {response.status}")
+        return json.load(response)
 
 
 def main():
     args = parse_arguments()
+    if args.mode == "gios":
+        try:
+            return gios.run(args, send_measurement)
+        except (URLError, OSError, RuntimeError, ValueError, KeyError) as error:
+            print(f"GIOŚ import stopped: {error}. No automatic retry.", file=sys.stderr)
+            return 1
     start = datetime.now(timezone.utc)
     if args.mode == "historical":
         try:
