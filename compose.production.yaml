@@ -1,0 +1,74 @@
+name: zai-production
+
+services:
+  db:
+    image: timescale/timescaledb-ha:pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - database-data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 10s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: ["caddy", "run", "--config", "/etc/caddy/${CADDY_CONFIG:-Caddyfile}", "--adapter", "caddyfile"]
+    environment:
+      PUBLIC_IP: ${PUBLIC_IP:?Set PUBLIC_IP in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy:/etc/caddy:ro
+      - certificates:/etc/letsencrypt:ro
+      - challenges:/var/www/certbot:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  certbot:
+    image: certbot/certbot:v5.4.0
+    profiles: ["tools"]
+    entrypoint: ["sh", "/scripts/certbot.sh"]
+    environment:
+      PUBLIC_IP: ${PUBLIC_IP:?Set PUBLIC_IP in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/certbot.sh:/scripts/certbot.sh:ro
+      - certificates:/etc/letsencrypt
+      - challenges:/var/www/certbot
+
+volumes:
+  database-data:
+  certificates:
+  challenges:
+  caddy-data:
+  caddy-config:

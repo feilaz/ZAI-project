@@ -1,0 +1,8 @@
+# Only the backend application and its dependencies belong in the image.
+**
+!backend/
+!backend/requirements.txt
+!backend/app/
+!backend/app/**
+**/__pycache__/
+**/*.py[cod]

@@ -1,0 +1,13 @@
+{
+	auto_https off
+}
+
+:80 {
+	handle /.well-known/acme-challenge/* {
+		root * /var/www/certbot
+		file_server
+	}
+	handle {
+		respond "HTTPS setup pending" 503
+	}
+}
