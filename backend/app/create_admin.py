@@ -12,9 +12,7 @@ def main() -> None:
     if not username:
         raise SystemExit("Username must not be empty.")
 
-    password = getpass("Password (at least 8 characters): ")
-    if len(password) < 8:
-        raise SystemExit("Password must contain at least 8 characters.")
+    password = getpass("Password: ")
     if password != getpass("Confirm password: "):
         raise SystemExit("Passwords do not match.")
 
