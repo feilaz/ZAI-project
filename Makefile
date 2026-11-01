@@ -1,4 +1,4 @@
-.PHONY: db-up db-stop db-status db-logs db-shell db-check db-setup migrate api dev
+.PHONY: db-up db-stop db-status db-logs db-shell db-check db-setup migrate create-admin api dev
 
 db-up:
 	docker compose up -d --wait db
@@ -22,6 +22,9 @@ db-setup: db-up
 	docker compose exec -T db sh -c 'PGPASSWORD="$$POSTGRES_PASSWORD" exec psql -X -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction --file=-' < database/setup.sql
 
 migrate: db-setup
+
+create-admin: db-setup
+	PYTHONPATH=backend .venv/bin/python -m app.create_admin
 
 api:
 	.venv/bin/python -m uvicorn app.main:app --app-dir backend --reload
