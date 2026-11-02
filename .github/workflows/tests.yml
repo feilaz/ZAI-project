@@ -1,0 +1,45 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      COMPOSE_PROJECT_NAME: zai-ci
+      POSTGRES_DB: zai_ci
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ci-test-password
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r backend/requirements-dev.txt -r generator/requirements.txt
+
+      - name: Run tests
+        run: make test
+
+      - name: Show database logs on failure
+        if: failure()
+        run: docker compose logs --tail=100 db
+
+      - name: Remove test database
+        if: always()
+        run: docker compose down --volumes
