@@ -78,3 +78,11 @@ prod-cert-check:
 
 prod-install-renewal:
 	sudo sh deploy/install-renewal.sh
+
+.PHONY: frontend frontend-build
+
+frontend:
+	npm --prefix frontend run dev
+
+frontend-build:
+	npm --prefix frontend run build

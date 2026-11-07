@@ -1,0 +1,80 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: sans-serif;
+  line-height: 1.5;
+}
+main {
+  max-width: 1100px;
+  margin: auto;
+  padding: 16px;
+}
+section,
+form {
+  margin: 24px 0;
+}
+fieldset {
+  margin-bottom: 16px;
+}
+.series-options,
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.filter-actions {
+  align-items: end;
+}
+.filter-actions label {
+  display: flex;
+  flex-direction: column;
+}
+input,
+button {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+.error,
+.error-text {
+  color: #a00000;
+}
+.chart {
+  width: 100%;
+  height: 350px;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th,
+td {
+  padding: 8px;
+  border: 1px solid #ccc;
+  text-align: left;
+}
+tbody th {
+  font-weight: normal;
+  white-space: nowrap;
+}
+.column-unit {
+  display: block;
+  font-weight: normal;
+}
+.reading {
+  margin: 2px;
+}
+.reading[aria-pressed="true"] {
+  background: #174f85;
+  color: white;
+}
+:focus-visible {
+  outline: 2px solid #174f85;
+  outline-offset: 2px;
+}

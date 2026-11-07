@@ -14,3 +14,7 @@ __pycache__/
 # Server credentials and certificates
 *.pem
 *.key
+
+# Frontend
+node_modules/
+frontend/dist/
