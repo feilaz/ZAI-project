@@ -26,3 +26,16 @@ export interface LoginResponse {
   accessToken: string;
   expiresIn: number;
 }
+
+export type SeriesInput = Omit<Series, "id">;
+
+export interface Sensor {
+  id: string;
+  name: string;
+  seriesId: string;
+  createdAt: string;
+}
+
+export interface RegisteredSensor extends Sensor {
+  apiKey: string;
+}

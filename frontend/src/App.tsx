@@ -8,6 +8,8 @@ import MeasurementChart from "./components/MeasurementChart";
 import MeasurementTable from "./components/MeasurementTable";
 
 export default function App() {
+  const [reloadSeries, setReloadSeries] = useState(0);
+  const [filterVersion, setFilterVersion] = useState(0);
   const [series, setSeries] = useState<Series[]>([]);
   const [filters, setFilters] = useState<Filters | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
@@ -17,9 +19,12 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
+    setError("");
     getSeries(controller.signal)
       .then((items) => {
         setSeries(items);
+        setFilterVersion((value) => value + 1);
         setFilters({
           seriesIds: items.map((item) => item.id),
           from: "",
@@ -35,7 +40,7 @@ export default function App() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [reloadSeries]);
 
   useEffect(() => {
     if (!filters) return;
@@ -77,10 +82,14 @@ export default function App() {
       <header>
         <h1>Air quality</h1>
       </header>
-      <AdminAccount />
+      <AdminAccount
+        series={series}
+        onSeriesChange={() => setReloadSeries((value) => value + 1)}
+      />
 
       {series.length > 0 && (
         <MeasurementFilters
+          key={filterVersion}
           series={series}
           busy={loading}
           onApply={setFilters}

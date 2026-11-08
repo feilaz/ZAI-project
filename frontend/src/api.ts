@@ -1,4 +1,12 @@
-import type { Filters, LoginResponse, Measurement, Series } from "./types";
+import type {
+  Filters,
+  LoginResponse,
+  Measurement,
+  Series,
+  SeriesInput,
+  Sensor,
+  RegisteredSensor,
+} from "./types";
 
 export const MEASUREMENT_LIMIT = 10000;
 
@@ -66,5 +74,48 @@ export function changePassword(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function saveSeries(token: string, body: SeriesInput, id?: string) {
+  return request<Series>(id ? `/api/series/${id}` : "/api/series", {
+    method: id ? "PUT" : "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteSeries(token: string, id: string) {
+  return request<void>(`/api/series/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getSensors(token: string, signal?: AbortSignal) {
+  return request<Sensor[]>("/api/sensors", {
+    headers: { Authorization: `Bearer ${token}` },
+    signal,
+  });
+}
+
+export function registerSensor(token: string, name: string, seriesId: string) {
+  return request<RegisteredSensor>("/api/sensors", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, seriesId }),
+  });
+}
+
+export function unregisterSensor(token: string, id: string) {
+  return request<void>(`/api/sensors/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
   });
 }

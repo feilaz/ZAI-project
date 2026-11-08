@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, changePassword, login, logout } from "../api";
-import type { LoginResponse } from "../types";
+import SeriesManagement from "./SeriesManagement";
+import SensorManagement from "./SensorManagement";
+import type { LoginResponse, Series } from "../types";
 
-export default function AdminAccount() {
+interface Props {
+  series: Series[];
+  onSeriesChange: () => void;
+}
+
+export default function AdminAccount({ series, onSeriesChange }: Props) {
+  const [management, setManagement] = useState<"series" | "sensors" | null>(
+    null,
+  );
   const [session, setSession] = useState<LoginResponse | null>(null);
   const [form, setForm] = useState<"login" | "password" | null>(null);
   const [username, setUsername] = useState("");
@@ -15,6 +25,7 @@ export default function AdminAccount() {
 
   function expireSession() {
     setSession(null);
+    setManagement(null);
     setForm("login");
     setPassword("");
     setNewPassword("");
@@ -30,6 +41,7 @@ export default function AdminAccount() {
 
   function showForm(nextForm: "login" | "password" | null) {
     setForm(nextForm);
+    setManagement(null);
     setPassword("");
     setNewPassword("");
     setError("");
@@ -74,6 +86,7 @@ export default function AdminAccount() {
     try {
       await logout(session.accessToken);
       setSession(null);
+      setManagement(null);
       showForm(null);
       setMessage("Logged out.");
     } catch (reason) {
@@ -88,6 +101,26 @@ export default function AdminAccount() {
       {session ? (
         <div className="account-actions">
           <span>Logged in as {username}</span>
+          <button
+            disabled={busy}
+            aria-pressed={management === "series"}
+            onClick={() => {
+              showForm(null);
+              setManagement(management === "series" ? null : "series");
+            }}
+          >
+            Series
+          </button>
+          <button
+            disabled={busy}
+            aria-pressed={management === "sensors"}
+            onClick={() => {
+              showForm(null);
+              setManagement(management === "sensors" ? null : "sensors");
+            }}
+          >
+            Sensors
+          </button>
           <button
             disabled={busy}
             onClick={() => showForm(form ? null : "password")}
@@ -153,6 +186,21 @@ export default function AdminAccount() {
             </button>
           </div>
         </form>
+      )}
+      {session && management === "series" && (
+        <SeriesManagement
+          token={session.accessToken}
+          series={series}
+          onChange={onSeriesChange}
+          onUnauthorized={expireSession}
+        />
+      )}
+      {session && management === "sensors" && (
+        <SensorManagement
+          token={session.accessToken}
+          series={series}
+          onUnauthorized={expireSession}
+        />
       )}
       {busy && <p role="status">Please wait…</p>}
       {error && (

@@ -21,26 +21,32 @@ fieldset {
 .series-options,
 .filter-actions,
 .account-fields,
-.account-actions {
+.account-actions,
+.management-fields {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
 .filter-actions,
 .account-fields,
-.account-actions {
+.account-actions,
+.management-fields {
   align-items: end;
 }
 .filter-actions label,
-.account-fields label {
+.account-fields label,
+.management-fields label {
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
-.account-fields input {
+.account-fields input,
+.management-fields input,
+.management-fields select {
   max-width: 100%;
 }
 input,
+select,
 button {
   font: inherit;
 }
@@ -86,6 +92,20 @@ tbody th {
 :focus-visible {
   outline: 2px solid #174f85;
   outline-offset: 2px;
+}
+
+.record-id {
+  display: block;
+  font-weight: normal;
+}
+.sensor-key {
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+.sensor-key input {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
 }
 
 .print-only {
