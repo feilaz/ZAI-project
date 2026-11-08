@@ -5,10 +5,11 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.security import APIKeyHeader
+from fastapi.responses import StreamingResponse
 from pydantic import AwareDatetime
 
 from app.auth import hash_token
-from app.database import get_connection
+from app.database import get_connection, get_stream_connection
 from app.schemas import MeasurementInput
 
 
@@ -41,6 +42,8 @@ def create_measurement(body: MeasurementInput, response: Response, api_key: str 
             f"VALUES (%s, %s, %s, %s, %s) RETURNING {COLUMNS}",
             (uuid4(), body.timestamp, sensor["series_id"], sensor["id"], body.value),
         ).fetchone()
+        # PostgreSQL delivers this notification only after the transaction commits.
+        connection.execute("SELECT pg_notify('measurements', %s)", (str(sensor["series_id"]),))
     response.headers["Location"] = f"/api/measurements/{measurement['id']}"
     return measurement
 
@@ -79,6 +82,23 @@ def list_measurements(
         ).fetchall()
     # A deleted sensor's optional ID must be omitted rather than returned as null.
     return [{key: value for key, value in row.items() if value is not None} for row in measurements]
+
+
+@router.get("/stream")
+async def stream_measurements():
+    async def events():
+        async with await get_stream_connection() as connection:
+            await connection.execute("LISTEN measurements")
+            # Fetch a fresh snapshot after LISTEN, including after reconnection.
+            yield "event: ready\ndata: {}\n\n"
+            while True:
+                async for notification in connection.notifies(timeout=15):
+                    yield f"event: measurement\ndata: {notification.payload}\n\n"
+                yield ": keep-alive\n\n"
+
+    return StreamingResponse(
+        events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"},
+    )
 
 
 @router.get("/{measurementId}")

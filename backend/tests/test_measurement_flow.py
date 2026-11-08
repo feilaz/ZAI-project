@@ -1,9 +1,15 @@
 import os
+import socket
+from threading import Thread
+import time
 from datetime import datetime
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
+
+import httpx2
+import uvicorn
 
 from fastapi.testclient import TestClient
 from psycopg import sql
@@ -178,3 +184,54 @@ class MeasurementFlowTest(unittest.TestCase):
         self.request("GET", f"/api/measurements/{newer['id']}", 404)
         self.request("POST", "/api/measurements", 401, headers=key, json={"value": 25})
         self.assertEqual(self.request("GET", "/api/measurements", 200, params={"series": series["id"]}).json(), [])
+
+    def test_stream_announces_saved_measurements_and_reconnects(self):
+        # A real HTTP server is needed because TestClient buffers streaming responses.
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            server = uvicorn.Server(uvicorn.Config(app, log_level="error", timeout_graceful_shutdown=1))
+            thread = Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
+            thread.start()
+            try:
+                deadline = time.monotonic() + 5
+                while not server.started and thread.is_alive() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(server.started, "Test server did not start")
+                base_url = f"http://127.0.0.1:{listener.getsockname()[1]}"
+                with httpx2.Client(base_url=base_url, timeout=5, trust_env=False) as reader:
+                    token = self.request("POST", "/api/auth/login", 200, json={
+                        "username": "admin", "password": self.password,
+                    }).json()["accessToken"]
+                    admin = {"Authorization": f"Bearer {token}"}
+                    series = self.request("POST", "/api/series", 201, headers=admin, json={
+                        "name": "Live PM2.5", "minValue": 0, "maxValue": 100, "color": "#123456",
+                    }).json()
+                    sensor = self.request("POST", "/api/sensors", 201, headers=admin, json={
+                        "name": "Live sensor", "seriesId": series["id"],
+                    }).json()
+                    key = {"X-API-Key": sensor["apiKey"]}
+                    with reader.stream("GET", "/api/measurements/stream", headers={"Accept": "text/event-stream"}) as stream:
+                        self.assertEqual(stream.status_code, 200)
+                        self.assertIn("text/event-stream", stream.headers["content-type"])
+                        lines = stream.iter_lines()
+                        self.assertEqual([next(lines) for _ in range(3)], ["event: ready", "data: {}", ""])
+                        saved = self.request("POST", "/api/measurements", 201, headers=key, json={"value": 12.5}).json()
+                        self.assertEqual([next(lines) for _ in range(3)], [
+                            "event: measurement", f"data: {series['id']}", "",
+                        ])
+                        self.assertEqual(reader.get("/api/measurements").json(), [saved])
+                        self.request("POST", "/api/measurements", 422, headers=key, json={"value": 101})
+                        # Rejected input must not produce another update event.
+                        with self.assertRaises(httpx2.ReadTimeout):
+                            next(lines)
+
+                    missed = self.request("POST", "/api/measurements", 201, headers=key, json={"value": 25}).json()
+                    with reader.stream("GET", "/api/measurements/stream", headers={"Accept": "text/event-stream"}) as stream:
+                        lines = stream.iter_lines()
+                        self.assertEqual(next(lines), "event: ready")
+                        # The browser uses ready to reload the snapshot after reconnecting.
+                        self.assertEqual(reader.get("/api/measurements").json(), [saved, missed])
+            finally:
+                server.should_exit = True
+                thread.join(timeout=5)
+                self.assertFalse(thread.is_alive(), "Test server did not stop")

@@ -16,6 +16,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [liveDisconnected, setLiveDisconnected] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -48,26 +49,57 @@ export default function App() {
     setSelectedId(null);
     setError("");
     setMeasurements([]);
+    setLiveDisconnected(false);
     if (!filters.seriesIds.length) {
       setLoading(false);
       return;
     }
     setLoading(true);
-    getMeasurements(filters, controller.signal)
-      .then(setMeasurements)
-      .catch((reason) => {
-        if (!controller.signal.aborted) {
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : "Cannot load measurements.",
-          );
+
+    // Coalesce events arriving during a fetch into one follow-up refresh.
+    let fetching = false;
+    let refreshPending = false;
+    async function refresh() {
+      refreshPending = true;
+      if (fetching) return;
+      fetching = true;
+      while (refreshPending && !controller.signal.aborted) {
+        refreshPending = false;
+        try {
+          const items = await getMeasurements(filters!, controller.signal);
+          if (!controller.signal.aborted) {
+            setMeasurements(items);
+            setError("");
+          }
+        } catch (reason) {
+          if (!controller.signal.aborted) {
+            setError(
+              reason instanceof Error
+                ? reason.message
+                : "Cannot load measurements.",
+            );
+          }
+        } finally {
+          if (!controller.signal.aborted) setLoading(false);
         }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
+      }
+      fetching = false;
+    }
+
+    const stream = new EventSource("/api/measurements/stream");
+    stream.addEventListener("ready", () => {
+      setLiveDisconnected(false);
+      void refresh();
+    });
+    stream.addEventListener("measurement", (event) => {
+      if (filters.seriesIds.includes(event.data)) void refresh();
+    });
+    stream.onerror = () => setLiveDisconnected(true);
+    void refresh();
+    return () => {
+      stream.close();
+      controller.abort();
+    };
   }, [filters]);
 
   const visibleSeries = series.filter((item) =>
@@ -100,6 +132,11 @@ export default function App() {
           <p>{error}</p>
           <button onClick={() => window.location.reload()}>Retry</button>
         </div>
+      )}
+      {liveDisconnected && (
+        <p className="live-status" role="status">
+          Live updates disconnected. Reconnecting…
+        </p>
       )}
       {loading && <p role="status">Loading measurements…</p>}
       {!loading && !error && (

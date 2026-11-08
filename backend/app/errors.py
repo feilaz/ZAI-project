@@ -48,9 +48,13 @@ async def check_media_types(request: Request, call_next):
                     except ValueError:
                         quality = 0
             accepted[media_type.strip()] = quality
-        quality = accepted.get("application/json", accepted.get("application/*", accepted.get("*/*", 0)))
+        response_type = "application/json"
+        if request.method == "GET" and request.url.path == "/api/measurements/stream":
+            response_type = "text/event-stream"
+        category = response_type.split("/")[0] + "/*"
+        quality = accepted.get(response_type, accepted.get(category, accepted.get("*/*", 0)))
         if not 0 < quality <= 1:
-            return problem(406, "Only application/json responses are available")
+            return problem(406, f"Only {response_type} responses are available")
         if request.method in {"POST", "PUT", "PATCH"} and await request.body():
             content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
             if content_type != "application/json":
