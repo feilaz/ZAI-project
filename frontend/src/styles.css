@@ -83,6 +83,29 @@ tbody th {
   display: none;
 }
 
+@media screen {
+  body {
+    background: #eef3f8;
+    color: #243447;
+  }
+
+  h1 {
+    color: #174f85;
+  }
+
+  section,
+  form {
+    background: white;
+    border: 1px solid #d6e0ea;
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  thead {
+    background: #eef3f8;
+  }
+}
+
 @media print {
   form,
   button,
