@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getMeasurements, getSeries, MEASUREMENT_LIMIT } from "./api";
 import { formatTime, formatValue, groupMeasurements } from "./measurementData";
 import type { Filters, Measurement, Series } from "./types";
+import AdminAccount from "./components/AdminAccount";
 import MeasurementFilters from "./components/MeasurementFilters";
 import MeasurementChart from "./components/MeasurementChart";
 import MeasurementTable from "./components/MeasurementTable";
@@ -76,6 +77,7 @@ export default function App() {
       <header>
         <h1>Air quality</h1>
       </header>
+      <AdminAccount />
 
       {series.length > 0 && (
         <MeasurementFilters

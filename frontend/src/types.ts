@@ -21,3 +21,8 @@ export interface Filters {
   from: string;
   to: string;
 }
+
+export interface LoginResponse {
+  accessToken: string;
+  expiresIn: number;
+}
