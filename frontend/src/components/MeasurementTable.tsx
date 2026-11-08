@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { formatTime, formatValue } from "../measurementData";
 import type { MeasurementRow } from "../measurementData";
 import type { Series } from "../types";
@@ -45,15 +46,19 @@ export default function MeasurementTable({
               {series.map((item) => (
                 <td key={item.id}>
                   {row.readings[item.id]?.map((measurement) => (
-                    <button
-                      key={measurement.id}
-                      className="reading"
-                      aria-pressed={selectedId === measurement.id}
-                      aria-label={`${item.name}, ${formatTime(row.timestamp)}, ${formatValue(measurement.value)} ${item.unit || ""}`}
-                      onClick={() => onSelect(measurement.id)}
-                    >
-                      {formatValue(measurement.value)}
-                    </button>
+                    <Fragment key={measurement.id}>
+                      <button
+                        className="reading"
+                        aria-pressed={selectedId === measurement.id}
+                        aria-label={`${item.name}, ${formatTime(row.timestamp)}, ${formatValue(measurement.value)} ${item.unit || ""}`}
+                        onClick={() => onSelect(measurement.id)}
+                      >
+                        {formatValue(measurement.value)}
+                      </button>
+                      <span className="print-only">
+                        {formatValue(measurement.value)}{" "}
+                      </span>
+                    </Fragment>
                   )) ?? "—"}
                 </td>
               ))}

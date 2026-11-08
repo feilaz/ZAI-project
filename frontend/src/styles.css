@@ -78,3 +78,57 @@ tbody th {
   outline: 2px solid #174f85;
   outline-offset: 2px;
 }
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  form,
+  button,
+  a,
+  .recharts-tooltip-wrapper {
+    display: none !important;
+  }
+
+  .print-only {
+    display: inline;
+  }
+
+  main {
+    max-width: none;
+    padding: 0;
+  }
+
+  section[aria-labelledby="chart-title"],
+  tr {
+    break-inside: avoid;
+  }
+
+  h2 {
+    break-after: avoid;
+  }
+
+  .recharts-responsive-container > div,
+  .recharts-wrapper,
+  .recharts-legend-wrapper {
+    width: 100% !important;
+  }
+
+  .table-scroll {
+    overflow: visible;
+  }
+
+  table {
+    table-layout: fixed;
+    font-size: 10pt;
+  }
+
+  th,
+  td,
+  tbody th {
+    padding: 4px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

@@ -30,7 +30,7 @@ api:
 	.venv/bin/python -m uvicorn app.main:app --app-dir backend --reload
 
 dev: db-setup
-	$(MAKE) api
+	$(MAKE) -j2 api frontend
 
 test: db-up
 	PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v
